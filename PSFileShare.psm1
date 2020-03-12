@@ -37,7 +37,7 @@ Function New-FileShareFile
     Param 
     (
         [Parameter(Mandatory = $true)] 
-        [string] $Path = "D:\MySharesProject",
+        [string] $Path,
         [array] $ExcludeShares = @('ADMIN$', 'C$', 'D$', 'print$', 'IPC$')
     )
    
