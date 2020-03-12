@@ -113,6 +113,7 @@ Function Get-FileShareInfos
     
     Try	
     {
+        Write-Verbose "START $(Get-Date)"
         If (Test-Path $InputFile)
         {
             $Title = "$($ManifestData.Description) v$($ManifestData.ModuleVersion) - $($ManifestData.Author)"
@@ -193,6 +194,10 @@ Function Get-FileShareInfos
         Write-Host -ForegroundColor Red "ERROR: [$($_.InvocationInfo.ScriptLineNumber)] $($_.InvocationInfo.ScriptName) >> " -BackgroundColor Black -NoNewline
         Write-Host -ForegroundColor White "$($_.InvocationInfo.Line.TrimStart())" -BackgroundColor Black
         [array]$GLOBAL:ErrorHashtable = @{Error = $($_); FilePath = $($_.InvocationInfo.ScriptName) ; FileLineNumber = $($_.InvocationInfo.ScriptLineNumber) ; FileLineDetails = $($_.InvocationInfo.Line).TrimStart() ; Command = $($_.InvocationInfo.MyCommand) }
+    }
+    Finally
+    {
+        Write-Verbose "END $(Get-Date)"
     }
 }
 
