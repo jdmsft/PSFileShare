@@ -118,11 +118,14 @@ Function Get-FileShareInfos
         {
             $Title = "$($ManifestData.Description) v$($ManifestData.ModuleVersion) - $($ManifestData.Author)"
 
-            Write-Verbose "Getting file share file $InputFile ..."
+            If (!(Test-Path $OutputPath)) { New-Item $OutputPath -ItemType Directory -Force | Out-Null }
+            Start-Transcript -Path "$OutputPath\$(Split-Path $InputFile -LeafBase)_transcript_$(Get-Date -Format yyyyMMdd_HHmmss).log"
+
+            Write-Verbose "[$(Get-Date)] Getting file share file $InputFile ..."
             $Shares = Get-Content $InputFile | ConvertFrom-Json
 
             #$Shares = Get-CimInstance -Class Win32_Share | ? { $_.Name -notin $ExcludeShares }
-            Write-Verbose "Number of shares found : $($Shares.count) !"
+            Write-Verbose "[$(Get-Date)] Number of shares found : $($Shares.count) !"
 
             If ($First -le 0)
             {
@@ -131,7 +134,8 @@ Function Get-FileShareInfos
                 $i = 0
                 ForEach ($Share in $Shares)
                 {
-                    Write-Verbose "Getting $($Share.Name)..."
+
+                    Write-Verbose "[$(Get-Date)] Getting $($Share.Name)..."
                     $i++
                     $Total = $Shares.count
                     $Percent = [math]::Round(($i / $Total * 100))
@@ -141,14 +145,23 @@ Function Get-FileShareInfos
                     {
                         Write-Warning "Skip $($Share.Name) because is greater than 260 characters ($($SharePath.Length))"
                     }
-                    $ShareItems = Get-ChildItem $SharePath -Force -Recurse
-                    $ShareSize = ($ShareItems | Measure-Object -Sum Length).Sum 
-                    $Folders = ($ShareItems | ? {$_.PSIsContainer -eq $true}).Count
-                    $Files = ($ShareItems | ? { $_.PSIsContainer -eq $false }).Count
-                    #$ShareSize = (Get-ChildItem $SharePath -force -recurse -ErrorAction Stop | Measure-Object -Sum Length).Sum 
-                    #$Files = (Get-ChildItem $SharePath -Recurse -File).Count
-                    #$Folders = (Get-ChildItem $SharePath -Recurse -Directory).Count
-                    [array]$ShareInfos += [pscustomobject]@{Name = $Share.Name; Path = $SharePath; Size = ("{0:N2}" -f ($ShareSize /1GB) + "GB"); Files = $Files; Folders = $Folders }
+                    #For test purpose only
+                    #$SharePath = 'X:\TEST'
+                    $ShareItems = Get-ChildItem $SharePath -Force -Recurse -ErrorAction SilentlyContinue
+                    $ShareRequestState = $?
+                    If ($ShareRequestState)
+                    {
+                        Write-Verbose "[$(Get-Date)] No errror detected."
+                        $ShareSize = ($ShareItems | Measure-Object -Sum Length).Sum 
+                        $Folders = ($ShareItems | ? { $_.PSIsContainer -eq $true }).Count
+                        $Files = ($ShareItems | ? { $_.PSIsContainer -eq $false }).Count
+                        [array]$ShareInfos += [pscustomobject]@{Name = $Share.Name; Path = $SharePath; Size = ("{0:N2}" -f ($ShareSize /1GB) + "GB"); Files = $Files; Folders = $Folders }
+                    }
+                    Else
+                    {
+                        Write-Verbose "[$(Get-Date)] Error detected !"
+                        [array]$ShareErrors += [pscustomobject]@{ Name = $Share.Name; Path = $SharePath; Error = $Error[0].Exception.Message ; Timestamp = (Get-Date).ToString() }
+                    }
                 }
             }
             Else 
@@ -158,7 +171,7 @@ Function Get-FileShareInfos
                 For ($i = 0 ; $i -le $First - 1 ; $i++)
                 {
                     If ($i -ge $Shares.count) { break }
-                    Write-Verbose "Getting share $($i+1) : $($Shares[$i].Name)..."
+                    Write-Verbose "[$(Get-Date)] Getting share $($i+1) : $($Shares[$i].Name)..."
                     $Total = $First
                     $Percent = [math]::Round((($i + 1) / $Total * 100))
                     Write-Progress -Id 0 -Activity $Title -CurrentOperation "[$($i+1)/$Total] $($Shares[$i].Name)" -PercentComplete $Percent -Status "$Percent%"
@@ -168,25 +181,31 @@ Function Get-FileShareInfos
                     {
                         Write-Warning "Skip $($Shares[$i].Name) because is greater than 260 characters ($($SharePath.Length))"
                     }
-                    $ShareItems = Get-ChildItem $SharePath -Force -Recurse
-                    $ShareSize = ($ShareItems | Measure-Object -Sum Length).Sum 
-                    $Folders = ($ShareItems | ? { $_.PSIsContainer -eq $true }).Count
-                    $Files = ($ShareItems | ? { $_.PSIsContainer -eq $false }).Count
-                    #$ShareSize = (Get-ChildItem $SharePath -force -recurse -ErrorAction Stop | Measure-Object -Sum Length).Sum 
-                    #$Files = (Get-ChildItem $SharePath -Recurse -File).Count
-                    #$Folders = (Get-ChildItem $SharePath -Recurse -Directory).Count
-                    [array]$ShareInfos += [pscustomobject]@{Name = $Shares[$i].Name; Path = $SharePath; Size = ("{0:N2}" -f ($ShareSize /1GB) + "GB"); Files = $Files; Folders = $Folders }
+                    $ShareItems = Get-ChildItem $SharePath -Force -Recurse -ErrorAction SilentlyContinue
+                    $ShareRequestState = $?
+                    If ($ShareRequestState)
+                    {
+                        Write-Verbose "[$(Get-Date)] No errror detected."
+                        $ShareSize = ($ShareItems | Measure-Object -Sum Length).Sum 
+                        $Folders = ($ShareItems | ? { $_.PSIsContainer -eq $true }).Count
+                        $Files = ($ShareItems | ? { $_.PSIsContainer -eq $false }).Count
+                        [array]$ShareInfos += [pscustomobject]@{Name = $Shares[$i].Name; Path = $SharePath; Size = ("{0:N2}" -f ($ShareSize /1GB) + "GB"); Files = $Files; Folders = $Folders }
+                    }
+                    Else
+                    {
+                        Write-Verbose "[$(Get-Date)] Error detected !"
+                        [array]$ShareErrors += [pscustomobject]@{ Name = $Shares[$i].Name; Path = $SharePath; Error = $Error[0].Exception.Message ; Timestamp = (Get-Date).ToString() }
+                    }
                 }
             }
 
             $ShareInfos
-            Write-Verbose "Exporting csv file to $OutputPath ..."
-            If (!(Test-Path $OutputPath)) { New-Item $OutputPath -ItemType Directory -Force | Out-Null }
-            $ShareInfos | Export-Csv "$OutputPath\$(Split-Path $InputFile -LeafBase).csv" -Force -NoTypeInformation
+            Write-Verbose "[$(Get-Date)] Exporting csv file to $OutputPath ..."
+            If ($ShareInfos) { $ShareInfos | Export-Csv -Path "$OutputPath\$(Split-Path $InputFile -LeafBase).csv" -Force -NoTypeInformation}
+            Write-Verbose "[$(Get-Date)] Exporting $($ShareErrors.count) errors to $OutputPath ..."
+            If ($ShareErrors) { $ShareErrors | ConvertTo-Json | Out-File "$OutputPath\$(Split-Path $InputFile -LeafBase)_errors_$(Get-Date -Format yyyyMMdd_HHmmss).json" -Append }
         }
-        Else {Write-Warning "InputFile path invalid ($InputFile)"}
-
-        
+        Else { Write-Warning "[$(Get-Date)] InputFile path invalid ($InputFile)"}        
     }
     Catch
     {
@@ -198,6 +217,7 @@ Function Get-FileShareInfos
     Finally
     {
         Write-Verbose "END $(Get-Date)"
+        Stop-Transcript
     }
 }
 
