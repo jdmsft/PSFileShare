@@ -134,6 +134,9 @@ Function Get-FileShareInfos
                 $i = 0
                 ForEach ($Share in $Shares)
                 {
+                    # Get memory usage
+                    $Memory = Test-MemoryUsage
+                    Write-Verbose "[$(Get-Date)] MEMORY : Status $($Memory.Status) - $($Memory.FreeGB)/$($Memory.TotalGB)GB ($($Memory.PctFree)% Free)"
 
                     Write-Verbose "[$(Get-Date)] Getting $($Share.Name)..."
                     $i++
@@ -170,6 +173,10 @@ Function Get-FileShareInfos
                 Write-Verbose "MODE FIRST SHARES ($First first shares)"
                 For ($i = 0 ; $i -le $First - 1 ; $i++)
                 {
+                    # Get memory usage
+                    $Memory = Test-MemoryUsage
+                    Write-Verbose "[$(Get-Date)] MEMORY : Status $($Memory.Status) - $($Memory.FreeGB)/$($Memory.TotalGB)GB ($($Memory.PctFree)% Free)"
+
                     If ($i -ge $Shares.count) { break }
                     Write-Verbose "[$(Get-Date)] Getting share $($i+1) : $($Shares[$i].Name)..."
                     $Total = $First
@@ -219,6 +226,34 @@ Function Get-FileShareInfos
         Write-Verbose "END $(Get-Date)"
         Stop-Transcript
     }
+}
+
+Function Test-MemoryUsage
+{
+    [cmdletbinding()]
+    Param()
+ 
+    $os = Get-CimInstance Win32_OperatingSystem -Verbose:$false
+    $pctFree = [math]::Round(($os.FreePhysicalMemory/$os.TotalVisibleMemorySize)*100, 2)
+ 
+    if ($pctFree -ge 45)
+    {
+        $Status = "OK"
+    }
+    elseif ($pctFree -ge 15 )
+    {
+        $Status = "Warning"
+    }
+    else
+    {
+        $Status = "Critical"
+    }
+ 
+    $os | Select @{Name = "Status"; Expression = { $Status } },
+    @{Name = "PctFree"; Expression = { $pctFree } },
+    @{Name = "FreeGB"; Expression = { [math]::Round($_.FreePhysicalMemory/1mb, 2) } },
+    @{Name = "TotalGB"; Expression = { [int]($_.TotalVisibleMemorySize/1mb) } }
+ 
 }
 
 # Aliases
