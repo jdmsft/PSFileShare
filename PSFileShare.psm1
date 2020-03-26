@@ -113,13 +113,16 @@ Function Get-FileShareInfos
     
     Try	
     {
-        Write-Verbose "START $(Get-Date)"
         If (Test-Path $InputFile)
         {
-            $Title = "$($ManifestData.Description) v$($ManifestData.ModuleVersion) - $($ManifestData.Author)"
-
             If (!(Test-Path $OutputPath)) { New-Item $OutputPath -ItemType Directory -Force | Out-Null }
             Start-Transcript -Path "$OutputPath\$(Split-Path $InputFile -LeafBase)_transcript_$(Get-Date -Format yyyyMMdd_HHmmss).log"
+
+            $Title = "$($ManifestData.Description) v$($ManifestData.ModuleVersion) - $($ManifestData.Author)"
+            Write-Verbose "**********************"
+            Write-Verbose $Title
+            Write-Verbose "**********************"
+            Write-Verbose "START $(Get-Date)"
 
             Write-Verbose "[$(Get-Date)] Getting file share file $InputFile ..."
             $Shares = Get-Content $InputFile | ConvertFrom-Json
@@ -155,9 +158,13 @@ Function Get-FileShareInfos
                     If ($ShareRequestState)
                     {
                         Write-Verbose "[$(Get-Date)] No errror detected."
-                        $ShareSize = ($ShareItems | Measure-Object -Sum Length).Sum 
+                        Write-Verbose "[$(Get-Date)] Counting number of folders ..."
                         $Folders = ($ShareItems | ? { $_.PSIsContainer -eq $true }).Count
+                        Write-Verbose "[$(Get-Date)] Counting number of files ..."
                         $Files = ($ShareItems | ? { $_.PSIsContainer -eq $false }).Count
+                        Write-Verbose "[$(Get-Date)] Measuring size ..."
+                        If ($Files -ne 0) { $ShareSize = ($ShareItems | Measure-Object -Sum Length).Sum } Else { Write-Verbose "[$(Get-Date)] No files found."; $ShareSize = 0}
+                        Write-Verbose "[$(Get-Date)] Creating share infos object ..."
                         [array]$ShareInfos += [pscustomobject]@{Name = $Share.Name; Path = $SharePath; Size = ("{0:N2}" -f ($ShareSize /1GB) + "GB"); Files = $Files; Folders = $Folders }
                     }
                     Else
@@ -193,9 +200,13 @@ Function Get-FileShareInfos
                     If ($ShareRequestState)
                     {
                         Write-Verbose "[$(Get-Date)] No errror detected."
-                        $ShareSize = ($ShareItems | Measure-Object -Sum Length).Sum 
+                        Write-Verbose "[$(Get-Date)] Counting number of folders ..."
                         $Folders = ($ShareItems | ? { $_.PSIsContainer -eq $true }).Count
+                        Write-Verbose "[$(Get-Date)] Counting number of files ..."
                         $Files = ($ShareItems | ? { $_.PSIsContainer -eq $false }).Count
+                        Write-Verbose "[$(Get-Date)] Measuring size ..."
+                        If ($Files -ne 0) { $ShareSize = ($ShareItems | Measure-Object -Sum Length).Sum } Else { Write-Verbose "[$(Get-Date)] No files found."; $ShareSize = 0 }
+                        Write-Verbose "[$(Get-Date)] Creating share infos object ..."
                         [array]$ShareInfos += [pscustomobject]@{Name = $Shares[$i].Name; Path = $SharePath; Size = ("{0:N2}" -f ($ShareSize /1GB) + "GB"); Files = $Files; Folders = $Folders }
                     }
                     Else
